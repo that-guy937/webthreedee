@@ -1,10 +1,26 @@
+/**
+ * @file A simple WebGL 2 3D library with no dependencies.
+ * @author Gemini 2.5 Pro AI
+ * @version 1.0
+ */
+
+// WebThreeDee - Simple 3D Library
+/**
+ * The main class for the WebThreeDee library. Initializes the WebGL context,
+ * manages shapes, and handles the render loop.
+ * @class
+ */
 class WebThreeDee {
+    /**
+     * @param {string} canvasId The ID of the canvas element to render to.
+     */
     constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.gl = this.canvas.getContext('webgl2');
         this.shapes = [];
         this.camera = new Camera();
         this.materialService = new MaterialService();
+        this.partsService = new PartsService(this);
         
         if (!this.gl) {
             throw new Error('WebGL2 not supported');
@@ -15,6 +31,10 @@ class WebThreeDee {
         this.render();
     }
     
+    /**
+     * Initializes WebGL, shaders, and window events.
+     * @private
+     */
     init() {
         this.resizeCanvas();
         this.gl.enable(this.gl.DEPTH_TEST);
@@ -27,6 +47,10 @@ class WebThreeDee {
         window.addEventListener('resize', () => this.resizeCanvas());
     }
     
+    /**
+     * Compiles and links the vertex and fragment shaders.
+     * @private
+     */
     setupShaders() {
         const vertexShaderSource = `#version 300 es
             in vec3 a_position;
@@ -106,6 +130,13 @@ class WebThreeDee {
         };
     }
     
+    /**
+     * Creates a shader program from vertex and fragment shader sources.
+     * @param {string} vertexSource The vertex shader source code.
+     * @param {string} fragmentSource The fragment shader source code.
+     * @returns {WebGLProgram} The linked shader program.
+     * @private
+     */
     createProgram(vertexSource, fragmentSource) {
         const vertexShader = this.createShader(this.gl.VERTEX_SHADER, vertexSource);
         const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, fragmentSource);
@@ -122,6 +153,13 @@ class WebThreeDee {
         return program;
     }
     
+    /**
+     * Creates and compiles a shader.
+     * @param {number} type The shader type (VERTEX_SHADER or FRAGMENT_SHADER).
+     * @param {string} source The shader source code.
+     * @returns {WebGLShader} The compiled shader.
+     * @private
+     */
     createShader(type, source) {
         const shader = this.gl.createShader(type);
         this.gl.shaderSource(shader, source);
@@ -134,12 +172,22 @@ class WebThreeDee {
         return shader;
     }
     
+    /**
+     * @deprecated Use partsService.createShape instead.
+     * Creates a new shape and adds it to the scene.
+     * @param {string} type The type of shape to create ('cuboid', 'ellipsoid', 'cylinder', 'wedge').
+     * @param {object} [options={}] Options for the shape (cframe, size, material).
+     * @returns {Shape} The created shape object.
+     */
     createShape(type, options = {}) {
-        const shape = new Shape(type, options);
-        this.shapes.push(shape);
-        return shape;
+        console.warn("webthreedee.createShape is deprecated. Please use webthreedee.partsService.createShape instead.");
+        return this.partsService.createShape(type, options);
     }
     
+    /**
+     * Sets up event listeners for camera controls.
+     * @private
+     */
     setupEventListeners() {
         let mouseX = 0, mouseY = 0;
         let isMouseDown = false;
@@ -174,15 +222,26 @@ class WebThreeDee {
         document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
         
         const updateMovement = () => {
-            if (keys['w']) this.camera.move(0, 0, 0.1);
-            if (keys['s']) this.camera.move(0, 0, -0.1);
-            if (keys['a']) this.camera.move(-0.1, 0, 0);
-            if (keys['d']) this.camera.move(0.1, 0, 0);
+            const moveSpeed = 0.1;
+            let moveVector = [0, 0, 0];
+            if (keys['w']) moveVector[2] -= moveSpeed;
+            if (keys['s']) moveVector[2] += moveSpeed;
+            if (keys['a']) moveVector[0] -= moveSpeed;
+            if (keys['d']) moveVector[0] += moveSpeed;
+
+            if (moveVector[0] !== 0 || moveVector[1] !== 0 || moveVector[2] !== 0) {
+                this.camera.moveRelative(moveVector[0], 0, moveVector[2]);
+            }
+
             requestAnimationFrame(updateMovement);
         };
         updateMovement();
     }
     
+    /**
+     * Resizes the canvas to fit the window.
+     * @private
+     */
     resizeCanvas() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
@@ -190,6 +249,10 @@ class WebThreeDee {
         this.camera.aspect = this.canvas.width / this.canvas.height;
     }
     
+    /**
+     * The main render loop.
+     * @private
+     */
     render() {
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         
@@ -208,35 +271,97 @@ class WebThreeDee {
     }
 }
 
-// Vector class
+/**
+ * Service for creating and managing shapes (Parts).
+ * @class
+ */
+class PartsService {
+    /**
+     * @param {WebThreeDee} webthreedeeInstance - The main WebThreeDee instance.
+     */
+    constructor(webthreedeeInstance) {
+        this.webthreedee = webthreedeeInstance;
+    }
+    /**
+     * Creates a new shape and adds it to the scene.
+     * @param {string} type The type of shape to create ('cuboid', 'ellipsoid', 'cylinder', 'wedge').
+     * @param {object} [options={}] Options for the shape (cframe, size, material).
+     * @returns {Shape} The created shape object.
+     */
+    createShape(type, options = {}) {
+        const shape = new Shape(type, options);
+        this.webthreedee.shapes.push(shape);
+        return shape;
+    }
+}
+
+/**
+ * A 3D vector class.
+ * @class
+ */
 class Vector {
+    /**
+     * @param {number} [x=0] - The x component.
+     * @param {number} [y=0] - The y component.
+     * @param {number} [z=0] - The z component.
+     */
     constructor(x = 0, y = 0, z = 0) {
         this.x = x;
         this.y = y;
         this.z = z;
     }
     
+    /**
+     * Static method to create a new Vector.
+     * @param {number} x - The x component.
+     * @param {number} y - The y component.
+     * @param {number} z - The z component.
+     * @returns {Vector} A new Vector object.
+     */
     static create(x, y, z) {
         return new Vector(x, y, z);
     }
 }
 
-// Global vector function
+/**
+ * A global helper function for creating vectors.
+ * @param {number} x - The x component.
+ * @param {number} y - The y component.
+ * @param {number} z - The z component.
+ * @returns {Vector} A new Vector object.
+ */
 function vector(x, y, z) {
     return new Vector(x, y, z);
 }
 
-// CFrame class
+/**
+ * CFrame (Coordinate Frame) class, represents position and rotation.
+ * @class
+ */
 class CFrame {
+    /**
+     * @param {Vector} [position=new Vector()] - The position vector.
+     * @param {Vector} [rotation=new Vector()] - The rotation vector (in degrees).
+     */
     constructor(position = new Vector(), rotation = new Vector()) {
         this.position = position;
         this.rotation = rotation;
     }
     
+    /**
+     * Static method to create a new CFrame.
+     * @param {Vector} position - The position vector.
+     * @param {Vector} rotation - The rotation vector (in degrees).
+     * @returns {CFrame} A new CFrame object.
+     */
     static create(position, rotation) {
         return new CFrame(position, rotation);
     }
     
+    /**
+     * Gets the transformation matrix for this CFrame.
+     * @returns {mat4} The 4x4 transformation matrix.
+     */
     getMatrix() {
         const matrix = mat4.create();
         mat4.translate(matrix, matrix, [this.position.x, this.position.y, this.position.z]);
@@ -247,19 +372,42 @@ class CFrame {
     }
 }
 
-// Material Service
+/**
+ * Service for creating and managing materials.
+ * @class
+ */
 class MaterialService {
+    /**
+     * Creates a new material.
+     * @param {number[]} color - The RGB color array, e.g., [1, 0, 0] for red.
+     * @param {object} [options={}] - Material options.
+     * @param {number} [options.shininess=0.5] - Shininess factor (0 to 1).
+     * @param {boolean} [options.mirror=false] - Whether the material is reflective.
+     * @returns {Material} The new Material object.
+     */
     createMat(color, options = {}) {
         return new Material(color, options);
     }
     
+    /**
+     * Alias for createMat for compatibility.
+     */
     CreateMat(color, options = {}) {
         return this.createMat(color, options);
     }
 }
 
-// Material class
+/**
+ * Represents the material properties of a shape.
+ * @class
+ */
 class Material {
+    /**
+     * @param {number[]} color - The RGB color array.
+     * @param {object} [options={}] - Material options.
+     * @param {number} [options.shininess=0.5] - Shininess factor.
+     * @param {boolean} [options.mirror=false] - Reflectivity.
+     */
     constructor(color, options = {}) {
         this.color = color;
         this.shininess = options.shininess || 0.5;
@@ -267,16 +415,33 @@ class Material {
     }
 }
 
-// Shape class
+/**
+ * Represents a 3D shape in the scene.
+ * @class
+ */
 class Shape {
+    /**
+     * @param {string} type - The geometry type ('cuboid', 'ellipsoid', etc.).
+     * @param {object} [options={}] - Shape options.
+     * @param {CFrame} [options.cframe] - The coordinate frame (position/rotation).
+     * @param {Vector} [options.size=vector(1,1,1)] - The size of the shape.
+     * @param {Material} [options.material] - The material of the shape.
+     */
     constructor(type, options = {}) {
         this.type = type;
         this.cframe = options.cframe || new CFrame();
+        this.size = options.size || vector(1, 1, 1);
         this.material = options.material || new Material([1, 1, 1]);
         this.geometry = this.createGeometry(type);
         this.setupBuffers();
     }
     
+    /**
+     * Creates the geometry data for a given shape type.
+     * @param {string} type - The shape type.
+     * @returns {{vertices: number[], indices: number[]}} The geometry data.
+     * @private
+     */
     createGeometry(type) {
         switch (type.toLowerCase()) {
             case 'cuboid':
@@ -476,6 +641,10 @@ class Shape {
         return { vertices, indices };
     }
     
+    /**
+     * Sets up the WebGL buffers for the shape's geometry.
+     * @private
+     */
     setupBuffers() {
         const gl = document.getElementById('canvas').getContext('webgl2');
         
@@ -505,11 +674,18 @@ class Shape {
         this.indexCount = this.geometry.indices.length;
     }
     
+    /**
+     * Renders the shape.
+     * @param {WebGL2RenderingContext} gl - The WebGL context.
+     * @param {object} uniforms - The shader uniform locations.
+     * @private
+     */
     render(gl, uniforms) {
         gl.bindVertexArray(this.vao);
         
         // Set model matrix
         const modelMatrix = this.cframe.getMatrix();
+        mat4.scale(modelMatrix, modelMatrix, [this.size.x, this.size.y, this.size.z]);
         gl.uniformMatrix4fv(uniforms.modelMatrix, false, modelMatrix);
         
         // Set normal matrix
@@ -527,10 +703,13 @@ class Shape {
     }
 }
 
-// Camera class
+/**
+ * Represents the camera in the scene.
+ * @class
+ */
 class Camera {
     constructor() {
-        this.position = [0, 0, 5];
+        this.position = [0, 0, 10];
         this.rotation = [0, 0];
         this.fov = 45;
         this.aspect = 1;
@@ -538,21 +717,70 @@ class Camera {
         this.far = 100;
     }
     
+    /**
+     * Moves the camera by a given amount in world coordinates.
+     * @param {number} x - Amount to move on the X axis.
+     * @param {number} y - Amount to move on the Y axis.
+     * @param {number} z - Amount to move on the Z axis.
+     */
     move(x, y, z) {
         this.position[0] += x;
         this.position[1] += y;
         this.position[2] += z;
     }
     
+    /**
+     * Moves the camera relative to its current rotation.
+     * @param {number} right - Amount to move right.
+     * @param {number} up - Amount to move up.
+     * @param {number} forward - Amount to move forward.
+     */
+    moveRelative(right, up, forward) {
+        const yaw = this.rotation[0];
+        const pitch = this.rotation[1];
+        
+        const cosPitch = Math.cos(pitch);
+        const sinPitch = Math.sin(pitch);
+        const cosYaw = Math.cos(yaw);
+        const sinYaw = Math.sin(yaw);
+
+        // Forward vector
+        const fwdX = -sinYaw * cosPitch;
+        const fwdY = sinPitch;
+        const fwdZ = -cosYaw * cosPitch;
+
+        // Right vector
+        const rightX = cosYaw;
+        const rightY = 0;
+        const rightZ = sinYaw;
+
+        this.position[0] += (forward * fwdX + right * rightX);
+        this.position[1] += (forward * fwdY + right * rightY); // 'up' is currently ignored as no key is bound to it
+        this.position[2] += (forward * fwdZ + right * rightZ);
+    }
+
+    /**
+     * Rotates the camera.
+     * @param {number} yaw - Rotation around the Y axis.
+     * @param {number} pitch - Rotation around the X axis.
+     */
     rotate(yaw, pitch) {
         this.rotation[0] += yaw;
         this.rotation[1] = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.rotation[1] + pitch));
     }
     
+    /**
+     * Zooms the camera by moving it forward/backward.
+     * @param {number} delta - The amount to zoom.
+     */
     zoom(delta) {
         this.position[2] += delta;
     }
     
+    /**
+     * Calculates and returns the view matrix.
+     * @returns {mat4} The view matrix.
+     */
     getViewMatrix() {
         const matrix = mat4.create();
         mat4.translate(matrix, matrix, this.position);
@@ -562,6 +790,10 @@ class Camera {
         return matrix;
     }
     
+    /**
+     * Calculates and returns the projection matrix.
+     * @returns {mat4} The projection matrix.
+     */
     getProjectionMatrix() {
         const matrix = mat4.create();
         mat4.perspective(matrix, this.fov * Math.PI / 180, this.aspect, this.near, this.far);
@@ -569,7 +801,10 @@ class Camera {
     }
 }
 
-// Simple mat4 implementation
+/**
+ * A simple library for 4x4 matrix operations.
+ * @namespace
+ */
 const mat4 = {
     create() {
         return new Float32Array([
@@ -585,6 +820,27 @@ const mat4 = {
         out[13] = a[1] * v[0] + a[5] * v[1] + a[9] * v[2] + a[13];
         out[14] = a[2] * v[0] + a[6] * v[1] + a[10] * v[2] + a[14];
         out[15] = a[3] * v[0] + a[7] * v[1] + a[11] * v[2] + a[15];
+        return out;
+    },
+    
+    scale(out, a, v) {
+        const x = v[0], y = v[1], z = v[2];
+        out[0] = a[0] * x;
+        out[1] = a[1] * x;
+        out[2] = a[2] * x;
+        out[3] = a[3] * x;
+        out[4] = a[4] * y;
+        out[5] = a[5] * y;
+        out[6] = a[6] * y;
+        out[7] = a[7] * y;
+        out[8] = a[8] * z;
+        out[9] = a[9] * z;
+        out[10] = a[10] * z;
+        out[11] = a[11] * z;
+        out[12] = a[12];
+        out[13] = a[13];
+        out[14] = a[14];
+        out[15] = a[15];
         return out;
     },
     
